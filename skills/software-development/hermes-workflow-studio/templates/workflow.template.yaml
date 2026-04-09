@@ -1,0 +1,39 @@
+name: complex-task-workflow
+version: 1
+
+meta:
+  objective: "在复杂任务下提升清晰度、质量和执行效率"
+  owner: "user"
+
+steps:
+  - id: s1
+    name: 需求澄清与约束提取
+    depends_on: []
+    model: "openrouter:anthropic/claude-sonnet-4"
+    skills: ["writing-plans"]
+    prompt: "提取目标、约束、验收标准，输出结构化需求摘要。"
+    output: "artifacts/requirements.md"
+
+  - id: s2
+    name: 方案设计与计划生成
+    depends_on: ["s1"]
+    model: "openrouter:openai/gpt-5"
+    skills: ["writing-plans", "subagent-driven-development"]
+    prompt: "基于需求给出可执行计划，标注风险与回滚点。"
+    output: "artifacts/plan.md"
+
+  - id: s3
+    name: 实施与验证
+    depends_on: ["s2"]
+    model: "openrouter:anthropic/claude-sonnet-4"
+    skills: ["requesting-code-review"]
+    prompt: "按计划实现并完成验证，输出变更摘要与测试结果。"
+    output: "artifacts/implementation-report.md"
+
+  - id: s4
+    name: 总结与优化建议
+    depends_on: ["s3"]
+    model: "openrouter:openai/gpt-5"
+    skills: []
+    prompt: "汇总结果，提出下一轮优化建议与可复用模板。"
+    output: "artifacts/summary.md"
