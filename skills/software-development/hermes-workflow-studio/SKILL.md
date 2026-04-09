@@ -1,7 +1,7 @@
 ---
 name: hermes-workflow-studio
 description: 在终端内用模板化方式设计可视化工作流：每步可配置 model、skills、prompt，并生成可读流程图（Mermaid + 文本树）供用户微调。
-version: 0.1.0
+version: 0.3.0
 author: Hermes Agent
 license: MIT
 metadata:
