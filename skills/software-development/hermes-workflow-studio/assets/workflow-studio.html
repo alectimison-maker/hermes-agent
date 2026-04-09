@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hermes Workflow Studio</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; margin: 0; display: grid; grid-template-columns: 300px 1fr 420px; height: 100vh; }
+    .pane { border-right: 1px solid #ddd; overflow: auto; padding: 12px; }
+    .pane:last-child { border-right: none; }
+    .step { padding: 8px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+    .step.active { border-color: #4f46e5; background: #eef2ff; }
+    input, textarea, select { width: 100%; box-sizing: border-box; margin: 6px 0 10px; padding: 8px; }
+    button { padding: 8px 10px; margin-right: 8px; }
+    .muted { color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="pane" id="left">
+    <h3>步骤列表</h3>
+    <div id="steps"></div>
+    <button onclick="addStep()">+ 新增步骤</button>
+    <button onclick="save()">保存</button>
+    <div class="muted" id="wfPath"></div>
+  </div>
+
+  <div class="pane">
+    <h3>流程图（自动布局）</h3>
+    <div id="diagram" class="mermaid"></div>
+  </div>
+
+  <div class="pane">
+    <h3>步骤编辑</h3>
+    <label>ID</label><input id="id" />
+    <label>名称</label><input id="name" />
+    <label>依赖（逗号分隔）</label><input id="depends_on" />
+    <label>Model（provider:model）</label><input id="model" />
+    <label>Skills（多选）</label>
+    <select id="skills" multiple size="10"></select>
+    <label>Prompt</label><textarea id="prompt" rows="6"></textarea>
+    <label>Output</label><input id="output" />
+    <button onclick="applyEdit()">应用修改</button>
+  </div>
+
+<script>
+let wf = null, current = 0, skillPool = [];
+mermaid.initialize({startOnLoad:false, securityLevel:'loose'});
+
+async function loadSkills(){
+  const r = await fetch('/api/skills');
+  const j = await r.json();
+  skillPool = j.skills || [];
+  const sel = document.getElementById('skills');
+  sel.innerHTML = '';
+  skillPool.forEach(s => {
+    const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o);
+  });
+}
+
+async function load(){
+  await loadSkills();
+  const r = await fetch('/api/workflow');
+  const j = await r.json();
+  wf = j.workflow;
+  document.getElementById('wfPath').textContent = '文件: ' + j.path;
+  renderList(); renderEditor(); renderDiagram();
+}
+
+function renderList(){
+  const c = document.getElementById('steps'); c.innerHTML = '';
+  wf.steps.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='step'+(i===current?' active':'');
+    d.textContent=`${s.id} | ${s.name}`;
+    d.onclick=()=>{current=i; renderList(); renderEditor();};
+    c.appendChild(d);
+  });
+}
+
+function renderEditor(){
+  const s = wf.steps[current] || {};
+  id.value = s.id || '';
+  name.value = s.name || '';
+  depends_on.value = (s.depends_on||[]).join(',');
+  model.value = s.model || '';
+  prompt.value = s.prompt || '';
+  output.value = s.output || '';
+  [...skills.options].forEach(o=>o.selected = (s.skills||[]).includes(o.value));
+}
+
+function applyEdit(){
+  const s = wf.steps[current];
+  s.id = id.value.trim();
+  s.name = name.value.trim();
+  s.depends_on = depends_on.value.split(',').map(x=>x.trim()).filter(Boolean);
+  s.model = model.value.trim();
+  s.skills = [...skills.options].filter(o=>o.selected).map(o=>o.value);
+  s.prompt = prompt.value;
+  s.output = output.value.trim();
+  renderList(); renderDiagram();
+}
+
+function addStep(){
+  wf.steps.push({id:`s${wf.steps.length+1}`,name:'新步骤',depends_on:[],model:'',skills:[],prompt:'',output:''});
+  current = wf.steps.length-1;
+  renderList(); renderEditor(); renderDiagram();
+}
+
+function toMmd(){
+  const lines=['flowchart TD'];
+  wf.steps.forEach(s=>lines.push(`  ${s.id}["${(s.name||'').replace(/"/g,'')}\\n[${(s.model||'').replace(/"/g,'')}]"]`));
+  wf.steps.forEach(s=>(s.depends_on||[]).forEach(d=>lines.push(`  ${d} --> ${s.id}`)));
+  return lines.join('\n');
+}
+
+async function renderDiagram(){
+  const el = document.getElementById('diagram');
+  el.innerHTML = toMmd();
+  await mermaid.run({nodes:[el]});
+}
+
+async function save(){
+  const payload = {path: document.getElementById('wfPath').textContent.replace('文件: ',''), workflow:wf};
+  const r = await fetch('/api/workflow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j = await r.json();
+  alert(j.ok ? '保存成功' : '保存失败');
+}
+
+load();
+</script>
+</body>
+</html>
